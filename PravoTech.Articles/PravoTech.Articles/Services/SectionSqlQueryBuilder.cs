@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using PravoTech.Articles.Constants;
 
 namespace PravoTech.Articles.Services
 {
@@ -11,7 +12,7 @@ namespace PravoTech.Articles.Services
                        SELECT 
                            s.Id AS SectionId,
                            s.Name,
-                           STRING_AGG(t.NormalizedName, ',') WITHIN GROUP (ORDER BY t.NormalizedName) AS RawTagKey
+                           STRING_AGG(t.NormalizedName, {SqlQueryConstants.TagIdSeparator}) WITHIN GROUP (ORDER BY t.NormalizedName) AS RawTagKey
                        FROM Sections s
                        LEFT JOIN SectionTags st ON st.SectionId = s.Id
                        LEFT JOIN Tags t ON t.Id = st.TagId
@@ -21,7 +22,7 @@ namespace PravoTech.Articles.Services
                    SectionTagLists AS (
                        SELECT 
                            s.Id AS SectionId,
-                           STRING_AGG(t.Name, ',') WITHIN GROUP (ORDER BY t.Name) AS RawTagList
+                           STRING_AGG(t.Name, {SqlQueryConstants.TagIdSeparator}) WITHIN GROUP (ORDER BY t.Name) AS RawTagList
                        FROM Sections s
                        LEFT JOIN SectionTags st ON st.SectionId = s.Id
                        LEFT JOIN Tags t ON t.Id = st.TagId
@@ -31,7 +32,7 @@ namespace PravoTech.Articles.Services
                    ArticleTagGroups AS (
                        SELECT 
                            a.Id AS ArticleId,
-                           STRING_AGG(t.NormalizedName, ',') WITHIN GROUP (ORDER BY t.NormalizedName) AS TagKey
+                           STRING_AGG(t.NormalizedName, {SqlQueryConstants.TagIdSeparator}) WITHIN GROUP (ORDER BY t.NormalizedName) AS TagKey
                        FROM Articles a
                        LEFT JOIN ArticleTags at ON at.ArticleId = a.Id
                        LEFT JOIN Tags t ON t.Id = at.TagId
@@ -77,14 +78,14 @@ namespace PravoTech.Articles.Services
                     JOIN ArticleTagInfo ati ON ati.ArticleId = a.Id
                     WHERE ati.TagCount = 0
                     ORDER BY a.EffectiveDate DESC;";
-                                }
-                                else
-                                {
-                                    return $@"
+            }
+            else
+            {
+                return $@"
                     WITH ArticleTagKeys AS (
                         SELECT 
                             a.Id AS ArticleId,
-                            STRING_AGG(CAST(at.TagId AS VARCHAR), ',') WITHIN GROUP (ORDER BY at.TagId) AS TagKey
+                            STRING_AGG(CAST(at.TagId AS VARCHAR), {SqlQueryConstants.TagIdSeparator}) WITHIN GROUP (ORDER BY at.TagId) AS TagKey
                         FROM Articles a
                         LEFT JOIN ArticleTags at ON at.ArticleId = a.Id
                         GROUP BY a.Id
@@ -104,7 +105,6 @@ namespace PravoTech.Articles.Services
                     WHERE atk.TagKey = {tagKey}
                     ORDER BY a.EffectiveDate DESC;";
             }
-
         }
 
         public static FormattableString BuildGetSectionIdByTagsSqlQuery(string? tagKey)
@@ -130,7 +130,7 @@ namespace PravoTech.Articles.Services
                     WITH SectionTagKeys AS (
                         SELECT 
                             s.Id AS SectionId,
-                            STRING_AGG(CAST(st.TagId AS VARCHAR), ',') WITHIN GROUP (ORDER BY st.TagId) AS TagKey
+                            STRING_AGG(CAST(st.TagId AS VARCHAR), {SqlQueryConstants.TagIdSeparator}) WITHIN GROUP (ORDER BY st.TagId) AS TagKey
                         FROM Sections s
                         LEFT JOIN SectionTags st ON st.SectionId = s.Id
                         GROUP BY s.Id
@@ -153,7 +153,7 @@ namespace PravoTech.Articles.Services
                         SELECT 1
                         FROM (
                             SELECT a.Id AS ArticleId,
-                                   STRING_AGG(CAST(ot.TagId AS VARCHAR), ',') WITHIN GROUP (ORDER BY ot.TagId) AS TagKey
+                                   STRING_AGG(CAST(ot.TagId AS VARCHAR), {SqlQueryConstants.TagIdSeparator}) WITHIN GROUP (ORDER BY ot.TagId) AS TagKey
                             FROM Articles a
                             LEFT JOIN OrderedTags ot ON ot.ArticleId = a.Id
                             GROUP BY a.Id

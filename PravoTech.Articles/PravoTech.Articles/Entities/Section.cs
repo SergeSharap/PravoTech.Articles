@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using PravoTech.Articles.Constants;
+using System.ComponentModel.DataAnnotations;
 
 namespace PravoTech.Articles.Entities
 {
@@ -6,7 +7,7 @@ namespace PravoTech.Articles.Entities
     {
         public Guid Id { get; set; }
 
-        [MaxLength(1024)]
+        [MaxLength(ValidationConstants.MaxSectionNameLength)]
         public string Name { get; set; } = null!;
 
         public List<SectionTag> SectionTags { get; set; } = [];

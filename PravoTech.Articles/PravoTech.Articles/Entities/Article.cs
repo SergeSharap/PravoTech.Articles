@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using PravoTech.Articles.Constants;
 
 namespace PravoTech.Articles.Entities
 {
@@ -6,7 +7,7 @@ namespace PravoTech.Articles.Entities
     {
         public Guid Id { get; set; }
 
-        [MaxLength(256)]
+        [MaxLength(ValidationConstants.MaxTitleLength)]
         public string Title { get; set; } = null!;
 
         public DateTime CreatedAt { get; set; }

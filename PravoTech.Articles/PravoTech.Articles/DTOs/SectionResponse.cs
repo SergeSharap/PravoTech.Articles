@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using PravoTech.Articles.Constants;
+using System.ComponentModel.DataAnnotations;
 
 namespace PravoTech.Articles.DTOs
 {
@@ -8,7 +9,7 @@ namespace PravoTech.Articles.DTOs
 
         public string Name { get; set; } = null!;
 
-        [MaxLength(256)]
+        [MaxLength(BusinessConstants.MaxTagsPerArticle)]
         public List<string> Tags { get; set; } = [];
 
         public int ArticlesCount { get; set; }

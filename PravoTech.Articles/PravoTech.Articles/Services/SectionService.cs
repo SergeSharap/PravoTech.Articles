@@ -1,5 +1,5 @@
-﻿using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
+using PravoTech.Articles.Constants;
 using PravoTech.Articles.Data;
 using PravoTech.Articles.DTOs;
 using PravoTech.Articles.Entities;
@@ -27,7 +27,7 @@ namespace PravoTech.Articles.Services
                     Id = s.Id,
                     Name = s.Name,
                     ArticlesCount = s.ArticlesCount,
-                    Tags = s.TagList.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList()
+                    Tags = s.TagList.Split(SqlQueryConstants.TagIdSeparator, StringSplitOptions.RemoveEmptyEntries).ToList()
                 })
                 .ToList();
 
@@ -55,7 +55,7 @@ namespace PravoTech.Articles.Services
                 .Select(st => st.TagId)
                 .OrderBy(id => id)
                 .ToListAsync();
-                var tagKey = string.Join(",", tagIds);
+                var tagKey = string.Join(SqlQueryConstants.TagIdSeparator, tagIds);
 
                 var rawArticles = await _context.Database
                     .SqlQuery<ArticleFlat>(SectionSqlQueryBuilder.BuildGetArticlesBySectionSqlQuery(tagKey))
@@ -99,8 +99,10 @@ namespace PravoTech.Articles.Services
                 .ToList();
 
             var sectionName = sortedTagNames.Any()
-                ? string.Join(", ", sortedTagNames)[..Math.Min(1024, string.Join(", ", sortedTagNames).Length)]
-                : "No Tags";
+                ? string.Join(SqlQueryConstants.TagNameSeparator, sortedTagNames)
+                    [..Math.Min(SqlQueryConstants.MaxSectionNameLength, 
+                    string.Join(SqlQueryConstants.TagNameSeparator, sortedTagNames).Length)]
+                : SqlQueryConstants.NoTagsSectionName;
 
             var sectionToAdd = new Section
             {
@@ -118,7 +120,7 @@ namespace PravoTech.Articles.Services
         public async Task<bool> DeleteSectionIfNoOtherArticlesAsync(List<int> tagIds)
         {
             string? tagKey = tagIds.Any()
-                ? string.Join(",", tagIds.OrderBy(id => id))
+                ? string.Join(SqlQueryConstants.TagIdSeparator, tagIds.OrderBy(id => id))
                 : null;
 
             var result = await _context.Database.SqlQuery<int>(SectionSqlQueryBuilder.BuildGetArticlesExistenceByTagsSqlQuery(tagKey)).ToListAsync();

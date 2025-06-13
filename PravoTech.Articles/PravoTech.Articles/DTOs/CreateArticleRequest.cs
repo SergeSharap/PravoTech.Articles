@@ -1,14 +1,15 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using PravoTech.Articles.Constants;
 
 namespace PravoTech.Articles.DTOs
 {
     public class CreateArticleRequest
     {
         [Required(AllowEmptyStrings = false)]
-        [MaxLength(256)]
+        [MaxLength(ValidationConstants.MaxTitleLength)]
         public string Title { get; set; } = null!;
 
-        [MaxLength(256)]
+        [MaxLength(BusinessConstants.MaxTagsPerArticle)]
         public List<string> Tags { get; set; } = [];
     }
 }

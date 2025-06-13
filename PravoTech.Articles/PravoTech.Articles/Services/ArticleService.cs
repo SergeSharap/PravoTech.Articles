@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using PravoTech.Articles.Constants;
 using PravoTech.Articles.Data;
 using PravoTech.Articles.DTOs;
 using PravoTech.Articles.Entities;
@@ -69,7 +70,8 @@ namespace PravoTech.Articles.Services
                             .Select((tag, i) => {
                                 var normalized = tag.Trim().ToLowerInvariant();
                                 if (!tagDict.TryGetValue(normalized, out var tagEntity))
-                                    throw new InvalidOperationException($"Tag '{normalized}' not found in allTags.");
+                                    throw new InvalidOperationException(
+                                        string.Format(BusinessConstants.TagNotFoundErrorMessageTemplate, normalized));
 
                                 return new ArticleTag
                                 {
@@ -115,7 +117,7 @@ namespace PravoTech.Articles.Services
                         .FirstOrDefaultAsync(a => a.Id == id);
 
                     if (article == null)
-                        throw new InvalidOperationException("Article not found");
+                        throw new InvalidOperationException(BusinessConstants.ArticleNotFoundErrorMessage);
 
                     var oldTagIds = article.ArticleTags
                         .Select(at => at.TagId)
@@ -134,7 +136,8 @@ namespace PravoTech.Articles.Services
                         {
                             var normalized = tag.Trim().ToLowerInvariant();
                             if (!tagDict.TryGetValue(normalized, out var tagEntity))
-                                throw new InvalidOperationException($"Tag '{normalized}' not found in allTags.");
+                                throw new InvalidOperationException(
+                                    string.Format(BusinessConstants.TagNotFoundErrorMessageTemplate, normalized));
 
                             return new ArticleTag
                             {
@@ -206,7 +209,6 @@ namespace PravoTech.Articles.Services
                     throw; //add logging
                 }
             });
-
         }
 
         private async Task<List<Tag>> GetTagsAndCreateSectionIfNeeded(List<string> tags)
@@ -216,7 +218,7 @@ namespace PravoTech.Articles.Services
                 .Select(t => t.Id)
                 .OrderBy(id => id)
                 .ToList();
-            var tagKey = string.Join(",", sortedTagIds);
+            var tagKey = string.Join(SqlQueryConstants.TagIdSeparator, sortedTagIds);
 
             var sectionId = await _sectionService.GetSectionIdByTags(tagKey);
             if (sectionId is null)

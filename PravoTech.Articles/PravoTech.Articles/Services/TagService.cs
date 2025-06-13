@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using PravoTech.Articles.Constants;
 using PravoTech.Articles.Data;
 using PravoTech.Articles.Entities;
 using System.ComponentModel.DataAnnotations;
@@ -22,8 +23,8 @@ namespace PravoTech.Articles.Services
                 .Distinct()
                 .ToList();
 
-            if (normalizedTags.Count > 256)
-                throw new ValidationException("Too many tags (max 256)");
+            if (normalizedTags.Count > BusinessConstants.MaxTagsPerArticle)
+                throw new ValidationException(BusinessConstants.TooManyTagsErrorMessage);
 
             var existingTags = await _context.Tags
                 .Where(t => normalizedTags.Contains(t.NormalizedName))

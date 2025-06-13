@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using PravoTech.Articles.Constants;
 using PravoTech.Articles.Entities;
 
 namespace PravoTech.Articles.Data
@@ -25,15 +26,15 @@ namespace PravoTech.Articles.Data
                 // Configure ID generation using NEWSEQUENTIALID()
                 entity.Property(a => a.Id)
                     .ValueGeneratedOnAdd()
-                    .HasDefaultValueSql("NEWSEQUENTIALID()");
+                    .HasDefaultValueSql(DatabaseConstants.NewSequentialIdFunction);
 
                 // Computed field EffectiveDate that uses UpdatedAt or CreatedAt
                 entity.Property(a => a.EffectiveDate)
-                    .HasComputedColumnSql("ISNULL([UpdatedAt], [CreatedAt])", stored: true);
+                    .HasComputedColumnSql(DatabaseConstants.EffectiveDateComputation, stored: true);
 
                 // Index for optimizing queries by EffectiveDate
                 entity.HasIndex(a => a.EffectiveDate)
-                    .HasDatabaseName("IX_Articles_EffectiveDate");
+                    .HasDatabaseName(DatabaseConstants.ArticlesEffectiveDateIndex);
             });
 
             // Section entity configuration
@@ -42,7 +43,7 @@ namespace PravoTech.Articles.Data
                 // Configure ID generation using NEWSEQUENTIALID()
                 entity.Property(s => s.Id)
                     .ValueGeneratedOnAdd()
-                    .HasDefaultValueSql("NEWSEQUENTIALID()");
+                    .HasDefaultValueSql(DatabaseConstants.NewSequentialIdFunction);
             });
 
             // ArticleTag entity configuration
@@ -69,7 +70,7 @@ namespace PravoTech.Articles.Data
                 // Unique index for normalized tag name
                 entity.HasIndex(t => t.NormalizedName)
                     .IsUnique()
-                    .HasDatabaseName("IX_Tags_NormalizedName");
+                    .HasDatabaseName(DatabaseConstants.TagsNormalizedNameIndex);
             });
         }
     }

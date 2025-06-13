@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using PravoTech.Articles.Constants;
 
 namespace PravoTech.Articles.Entities
 {
@@ -6,9 +7,10 @@ namespace PravoTech.Articles.Entities
     {
         public int Id { get; set; }
 
-        [MaxLength(256)]
+        [MaxLength(ValidationConstants.MaxTagNameLength)]
         public string Name { get; set; } = null!;
-        [MaxLength(256)]
+
+        [MaxLength(ValidationConstants.MaxTagNameLength)]
         public string NormalizedName { get; set; } = null!;
 
         public List<ArticleTag> ArticleTags { get; set; } = [];
