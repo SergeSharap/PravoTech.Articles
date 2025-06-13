@@ -7,16 +7,22 @@ namespace PravoTech.Articles.Services
 {
     public class ArticleService : IArticleService
     {
-        public ArticleService(AppDbContext dbContext, ISectionService sectionService, ITagService tagService)
+        public ArticleService(
+            AppDbContext dbContext, 
+            ISectionService sectionService, 
+            ITagService tagService,
+            IDateTimeProvider dateTimeProvider)
         {
             _context = dbContext;
             _sectionService = sectionService;
             _tagService = tagService;
+            _dateTimeProvider = dateTimeProvider;
         }
 
         private readonly AppDbContext _context;
         private readonly ISectionService _sectionService;
         private readonly ITagService _tagService;
+        private readonly IDateTimeProvider _dateTimeProvider;
 
         public async Task<ArticleResponse?> GetByIdAsync(Guid id)
         {
@@ -58,7 +64,7 @@ namespace PravoTech.Articles.Services
                     var article = new Article
                     {
                         Title = request.Title,
-                        CreatedAt = DateTime.UtcNow,
+                        CreatedAt = _dateTimeProvider.UtcNow,
                         ArticleTags = request.Tags
                             .Select((tag, i) => {
                                 var normalized = tag.Trim().ToLowerInvariant();
@@ -118,7 +124,7 @@ namespace PravoTech.Articles.Services
                     List<Tag> allTags = await GetTagsAndCreateSectionIfNeeded(request.Tags);
 
                     article.Title = request.Title;
-                    article.UpdatedAt = DateTime.UtcNow;
+                    article.UpdatedAt = _dateTimeProvider.UtcNow;
 
                     _context.ArticleTags.RemoveRange(article.ArticleTags);
 
