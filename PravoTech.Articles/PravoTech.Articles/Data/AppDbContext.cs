@@ -5,47 +5,72 @@ namespace PravoTech.Articles.Data
 {
     public class AppDbContext : DbContext
     {
-        public DbSet<Article> Articles => Set<Article>();
-        public DbSet<Tag> Tags => Set<Tag>();
-        public DbSet<ArticleTag> ArticleTags => Set<ArticleTag>();
-        public DbSet<SectionTag> SectionTags => Set<SectionTag>();
-        public DbSet<Section> Sections => Set<Section>();
+        public DbSet<Article> Articles { get; set; } = null!;
+
+        public DbSet<Section> Sections { get; set; } = null!;
+
+        public DbSet<Tag> Tags { get; set; } = null!;
+
+        public DbSet<ArticleTag> ArticleTags { get; set; } = null!;
+
+        public DbSet<SectionTag> SectionTags { get; set; } = null!;
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<Article>()
-                .Property(a => a.Id)
-                .ValueGeneratedOnAdd()
-                .HasDefaultValueSql("NEWSEQUENTIALID()");
+            // Article entity configuration
+            modelBuilder.Entity<Article>(entity =>
+            {
+                // Configure ID generation using NEWSEQUENTIALID()
+                entity.Property(a => a.Id)
+                    .ValueGeneratedOnAdd()
+                    .HasDefaultValueSql("NEWSEQUENTIALID()");
 
-            modelBuilder.Entity<Article>()
-                .Property(a => a.EffectiveDate)
-                .HasComputedColumnSql("ISNULL([UpdatedAt], [CreatedAt])", stored: true);
+                // Computed field EffectiveDate that uses UpdatedAt or CreatedAt
+                entity.Property(a => a.EffectiveDate)
+                    .HasComputedColumnSql("ISNULL([UpdatedAt], [CreatedAt])", stored: true);
 
-            modelBuilder.Entity<Article>()
-                .HasIndex(a => a.EffectiveDate)
-                .HasDatabaseName("IX_Articles_EffectiveDate");
+                // Index for optimizing queries by EffectiveDate
+                entity.HasIndex(a => a.EffectiveDate)
+                    .HasDatabaseName("IX_Articles_EffectiveDate");
+            });
 
-            modelBuilder.Entity<Section>()
-                .Property(s => s.Id)
-                .ValueGeneratedOnAdd()
-                .HasDefaultValueSql("NEWSEQUENTIALID()");
+            // Section entity configuration
+            modelBuilder.Entity<Section>(entity =>
+            {
+                // Configure ID generation using NEWSEQUENTIALID()
+                entity.Property(s => s.Id)
+                    .ValueGeneratedOnAdd()
+                    .HasDefaultValueSql("NEWSEQUENTIALID()");
+            });
 
-            modelBuilder.Entity<ArticleTag>()
-                .HasKey(at => new { at.ArticleId, at.TagId });
+            // ArticleTag entity configuration
+            modelBuilder.Entity<ArticleTag>(entity =>
+            {
+                // Composite primary key from ArticleId and TagId
+                entity.HasKey(at => new { at.ArticleId, at.TagId });
 
-            modelBuilder.Entity<ArticleTag>()
-                .HasIndex(at => new { at.ArticleId, at.Order }).IsUnique();
+                // Unique index to maintain tag order in articles
+                entity.HasIndex(at => new { at.ArticleId, at.Order })
+                    .IsUnique();
+            });
 
-            modelBuilder.Entity<SectionTag>()
-                .HasKey(at => new { at.SectionId, at.TagId });
+            // SectionTag entity configuration
+            modelBuilder.Entity<SectionTag>(entity =>
+            {
+                // Composite primary key from SectionId and TagId
+                entity.HasKey(at => new { at.SectionId, at.TagId });
+            });
 
-
-            modelBuilder.Entity<Tag>().HasIndex(t => t.NormalizedName)
-                .IsUnique()
-                .HasDatabaseName("IX_Tags_NormalizedName");
+            // Tag entity configuration
+            modelBuilder.Entity<Tag>(entity =>
+            {
+                // Unique index for normalized tag name
+                entity.HasIndex(t => t.NormalizedName)
+                    .IsUnique()
+                    .HasDatabaseName("IX_Tags_NormalizedName");
+            });
         }
     }
 }
