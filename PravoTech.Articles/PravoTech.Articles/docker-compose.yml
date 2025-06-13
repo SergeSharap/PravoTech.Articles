@@ -1,8 +1,27 @@
+# Docker Compose configuration for PravoTech.Articles application
+# Version: 1.0.0
+#
+# Deployment process:
+# 1. Build the API image:
+#    docker build -t pravotech/articles-api:1.0.0 .
+# 2. Start the services:
+#    docker-compose up -d
+# 3. Verify the deployment:
+#    - API should be available at http://localhost:8080
+#    - SQL Server should be available at localhost:1433
+#
+# Environment variables required:
+# - CONNECTION_STRING: SQL Server connection string
+# - SA_PASSWORD: SQL Server SA password
+
 services:
   api:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - BUILD_VERSION=1.0.0
+    image: pravotech/articles-api:1.0.0
     ports:
       - "8080:8080"
     environment:
@@ -10,9 +29,10 @@ services:
       - CONNECTION_STRING=${CONNECTION_STRING}
     depends_on:
       - sql
+    restart: unless-stopped
 
   sql:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    image: mcr.microsoft.com/mssql/server:2022.16.0
     environment:
       SA_PASSWORD: ${SA_PASSWORD}
       ACCEPT_EULA: "Y"
@@ -20,6 +40,8 @@ services:
       - "1433:1433"
     volumes:
       - sql_data:/var/opt/mssql
+    restart: unless-stopped
 
 volumes:
   sql_data:
+    name: pravotech_articles_sql_data
