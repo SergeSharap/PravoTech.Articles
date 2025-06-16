@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PravoTech.Articles.Data;
+using PravoTech.Articles.Middleware;
 using PravoTech.Articles.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,6 +9,9 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Configuration.AddEnvironmentVariables();
+
+// Add memory cache
+builder.Services.AddMemoryCache();
 
 var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
@@ -33,6 +37,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseAuthorization();
+
+// Add exception handling middleware
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.MapControllers();
 
