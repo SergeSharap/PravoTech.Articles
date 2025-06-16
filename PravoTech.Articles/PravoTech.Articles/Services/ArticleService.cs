@@ -1,10 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using PravoTech.Articles.Constants;
 using PravoTech.Articles.Data;
 using PravoTech.Articles.DTOs;
 using PravoTech.Articles.Entities;
-using System.ComponentModel.DataAnnotations;
 
 namespace PravoTech.Articles.Services
 {
@@ -92,6 +90,7 @@ namespace PravoTech.Articles.Services
                             })
                             .ToList()
                     };
+                    article.SetEffectiveDate();
 
                     _context.Articles.Add(article);
                     await _context.SaveChangesAsync();
@@ -144,6 +143,7 @@ namespace PravoTech.Articles.Services
 
                     article.Title = request.Title;
                     article.UpdatedAt = _dateTimeProvider.UtcNow;
+                    article.SetEffectiveDate();
 
                     _context.ArticleTags.RemoveRange(article.ArticleTags);
 

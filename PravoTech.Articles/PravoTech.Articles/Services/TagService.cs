@@ -1,6 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging;
 using PravoTech.Articles.Constants;
 using PravoTech.Articles.Data;
 using PravoTech.Articles.Entities;

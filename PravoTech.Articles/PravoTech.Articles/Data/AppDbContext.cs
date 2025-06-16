@@ -28,10 +28,6 @@ namespace PravoTech.Articles.Data
                     .ValueGeneratedOnAdd()
                     .HasDefaultValueSql(DatabaseConstants.NewSequentialIdFunction);
 
-                // Computed field EffectiveDate that uses UpdatedAt or CreatedAt
-                entity.Property(a => a.EffectiveDate)
-                    .HasComputedColumnSql(DatabaseConstants.EffectiveDateComputation, stored: true);
-
                 // Index for optimizing queries by EffectiveDate
                 entity.HasIndex(a => a.EffectiveDate)
                     .HasDatabaseName(DatabaseConstants.ArticlesEffectiveDateIndex);

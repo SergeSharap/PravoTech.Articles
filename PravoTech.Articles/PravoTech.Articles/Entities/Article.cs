@@ -7,13 +7,21 @@ namespace PravoTech.Articles.Entities
     {
         public Guid Id { get; set; }
 
-        [MaxLength(ValidationConstants.MaxTitleLength)]
-        public string Title { get; set; } = null!;
+        [Required]
+        [MaxLength(200)]
+        public string Title { get; set; } = string.Empty;
 
         public DateTime CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
-        public DateTime EffectiveDate { get; private set; }
 
-        public List<ArticleTag> ArticleTags { get; set; } = [];
+        public DateTime? UpdatedAt { get; set; }
+
+        public DateTime EffectiveDate { get; set; }
+
+        public List<ArticleTag> ArticleTags { get; set; } = new();
+
+        public void SetEffectiveDate()
+        {
+            EffectiveDate = UpdatedAt ?? CreatedAt;
+        }
     }
 }

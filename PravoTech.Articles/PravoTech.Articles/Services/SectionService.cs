@@ -1,10 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using PravoTech.Articles.Constants;
 using PravoTech.Articles.Data;
 using PravoTech.Articles.DTOs;
 using PravoTech.Articles.Entities;
-using System.ComponentModel.DataAnnotations;
 
 namespace PravoTech.Articles.Services
 {
