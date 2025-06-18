@@ -11,5 +11,8 @@ namespace PravoTech.Articles.DTOs
 
         [MaxLength(BusinessConstants.MaxTagsPerArticle)]
         public List<string> Tags { get; set; } = [];
+
+        [Required]
+        public byte[] RowVersion { get; set; } = null!;
     }
 }

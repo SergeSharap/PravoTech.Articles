@@ -7,5 +7,6 @@
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public List<string> Tags { get; set; } = new();
+        public byte[] RowVersion { get; set; } = null!;
     }
 }

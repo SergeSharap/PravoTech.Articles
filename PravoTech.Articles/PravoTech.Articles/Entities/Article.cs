@@ -17,7 +17,10 @@ namespace PravoTech.Articles.Entities
 
         public DateTime EffectiveDate { get; set; }
 
-        public List<ArticleTag> ArticleTags { get; set; } = new();
+        [Timestamp]
+        public byte[] RowVersion { get; set; } = null!;
+
+        public virtual ICollection<ArticleTag> ArticleTags { get; set; } = new List<ArticleTag>();
 
         public void SetEffectiveDate()
         {

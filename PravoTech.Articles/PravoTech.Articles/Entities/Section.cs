@@ -10,6 +10,7 @@ namespace PravoTech.Articles.Entities
         [MaxLength(ValidationConstants.MaxSectionNameLength)]
         public string Name { get; set; } = null!;
 
-        public List<SectionTag> SectionTags { get; set; } = [];
+        // Navigation properties
+        public virtual ICollection<SectionTag> SectionTags { get; set; } = new List<SectionTag>();
     }
 }

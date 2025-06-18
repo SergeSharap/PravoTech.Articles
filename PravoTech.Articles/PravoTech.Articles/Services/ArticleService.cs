@@ -46,14 +46,14 @@ namespace PravoTech.Articles.Services
                 .Select(at => at.Tag.Name)
                 .ToList();
 
-            _logger.LogInformation("Retrieved article {ArticleId}", id);
             return new ArticleResponse
             {
                 Id = article.Id,
                 Title = article.Title,
                 CreatedAt = article.CreatedAt,
                 UpdatedAt = article.UpdatedAt,
-                Tags = tags
+                Tags = tags,
+                RowVersion = article.RowVersion
             };
         }
 
@@ -68,10 +68,38 @@ namespace PravoTech.Articles.Services
                 {
                     _logger.LogInformation("Creating new article with title {Title}", request.Title);
 
+                    Article article;
+                    // Handle case with empty tags
+                    if (!request.Tags.Any())
+                    {
+                        article = new Article
+                        {
+                            Title = request.Title,
+                            CreatedAt = _dateTimeProvider.UtcNow,
+                            ArticleTags = new List<ArticleTag>() // Empty list
+                        };
+                        article.SetEffectiveDate();
+
+                        _context.Articles.Add(article);
+                        await _context.SaveChangesAsync();
+                        await transaction.CommitAsync();
+
+                        _logger.LogInformation("Created article {ArticleId} without tags", article.Id);
+                        return new ArticleResponse
+                        {
+                            Id = article.Id,
+                            Title = article.Title,
+                            CreatedAt = article.CreatedAt,
+                            Tags = new List<string>(),
+                            RowVersion = article.RowVersion
+                        };
+                    }
+
+                    // Handle case with tags
                     List<Tag> allTags = await GetTagsAndCreateSectionIfNeeded(request.Tags);
                     var tagDict = allTags.ToDictionary(t => t.NormalizedName);
 
-                    var article = new Article
+                    article = new Article
                     {
                         Title = request.Title,
                         CreatedAt = _dateTimeProvider.UtcNow,
@@ -96,13 +124,14 @@ namespace PravoTech.Articles.Services
                     await _context.SaveChangesAsync();
                     await transaction.CommitAsync();
 
-                    _logger.LogInformation("Created article {ArticleId}", article.Id);
+                    _logger.LogInformation("Created article {ArticleId} with {TagCount} tags", article.Id, request.Tags.Count);
                     return new ArticleResponse
                     {
                         Id = article.Id,
                         Title = article.Title,
                         CreatedAt = article.CreatedAt,
-                        Tags = request.Tags
+                        Tags = request.Tags,
+                        RowVersion = article.RowVersion
                     };
                 }
                 catch
@@ -134,50 +163,72 @@ namespace PravoTech.Articles.Services
                         throw new KeyNotFoundException($"Article with ID {id} not found");
                     }
 
+                    // Check for concurrency conflict
+                    if (!article.RowVersion.SequenceEqual(request.RowVersion))
+                    {
+                        throw new InvalidOperationException("The article has been modified by another user. Please refresh and try again.");
+                    }
+
                     var oldTagIds = article.ArticleTags
                         .Select(at => at.TagId)
                         .OrderBy(id => id)
                         .ToList();
 
-                    List<Tag> allTags = await GetTagsAndCreateSectionIfNeeded(request.Tags);
-
                     article.Title = request.Title;
                     article.UpdatedAt = _dateTimeProvider.UtcNow;
                     article.SetEffectiveDate();
 
+                    // Remove old tag relationships
                     _context.ArticleTags.RemoveRange(article.ArticleTags);
 
-                    var tagDict = allTags.ToDictionary(t => t.NormalizedName);
-                    article.ArticleTags = request.Tags
-                        .Select((tag, i) =>
-                        {
-                            var normalized = tag.Trim().ToLowerInvariant();
-                            if (!tagDict.TryGetValue(normalized, out var tagEntity))
-                                throw new InvalidOperationException(
-                                    string.Format(BusinessConstants.TagNotFoundErrorMessageTemplate, normalized));
-
-                            return new ArticleTag
+                    // Handle case with empty tags
+                    if (!request.Tags.Any())
+                    {
+                        article.ArticleTags = new List<ArticleTag>();
+                    }
+                    else
+                    {
+                        // Handle case with tags
+                        List<Tag> allTags = await GetTagsAndCreateSectionIfNeeded(request.Tags);
+                        var tagDict = allTags.ToDictionary(t => t.NormalizedName);
+                        
+                        article.ArticleTags = request.Tags
+                            .Select((tag, i) =>
                             {
-                                ArticleId = article.Id,
-                                TagId = tagEntity.Id,
-                                Order = i
-                            };
-                        })
-                        .ToList();
+                                var normalized = tag.Trim().ToLowerInvariant();
+                                if (!tagDict.TryGetValue(normalized, out var tagEntity))
+                                    throw new InvalidOperationException(
+                                        string.Format(BusinessConstants.TagNotFoundErrorMessageTemplate, normalized));
+
+                                return new ArticleTag
+                                {
+                                    ArticleId = article.Id,
+                                    TagId = tagEntity.Id,
+                                    Order = i
+                                };
+                            })
+                            .ToList();
+                    }
 
                     await _context.SaveChangesAsync();
                     await _sectionService.DeleteSectionIfNoOtherArticlesAsync(oldTagIds);
                     await transaction.CommitAsync();
 
-                    _logger.LogInformation("Updated article {ArticleId}", id);
+                    _logger.LogInformation("Updated article {ArticleId} with {TagCount} tags", id, request.Tags.Count);
                     return new ArticleResponse
                     {
                         Id = article.Id,
                         Title = article.Title,
                         CreatedAt = article.CreatedAt,
                         UpdatedAt = article.UpdatedAt,
-                        Tags = request.Tags
+                        Tags = request.Tags,
+                        RowVersion = article.RowVersion
                     };
+                }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    await transaction.RollbackAsync();
+                    throw new InvalidOperationException("The article has been modified by another user. Please refresh and try again.", ex);
                 }
                 catch
                 {
@@ -234,14 +285,29 @@ namespace PravoTech.Articles.Services
 
         private async Task<List<Tag>> GetTagsAndCreateSectionIfNeeded(List<string> tags)
         {
+            Guid? sectionId;
+            // Handle case with empty tags
+            if (!tags.Any())
+            {
+                // Check if section without tags exists
+                sectionId = await _sectionService.GetSectionIdByTags(null);
+                if (sectionId is null)
+                {
+                    // Create section without tags
+                    await _sectionService.CreateSection(new List<Tag>(), new List<int>());
+                }
+                return new List<Tag>();
+            }
+
+            // Handle case with tags
             var allTags = await _tagService.GetOrCreateTagsAsync(tags);
             var sortedTagIds = allTags
                 .Select(t => t.Id)
                 .OrderBy(id => id)
                 .ToList();
-            var tagKey = string.Join(SqlQueryConstants.TagIdSeparator, sortedTagIds);
+            var tagKey = string.Join(TagConstants.TagIdSeparator, sortedTagIds);
 
-            var sectionId = await _sectionService.GetSectionIdByTags(tagKey);
+            sectionId = await _sectionService.GetSectionIdByTags(tagKey);
             if (sectionId is null)
             {
                 await _sectionService.CreateSection(allTags, sortedTagIds);

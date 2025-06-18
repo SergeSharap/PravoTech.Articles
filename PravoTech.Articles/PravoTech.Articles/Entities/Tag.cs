@@ -13,7 +13,8 @@ namespace PravoTech.Articles.Entities
         [MaxLength(ValidationConstants.MaxTagNameLength)]
         public string NormalizedName { get; set; } = null!;
 
-        public List<ArticleTag> ArticleTags { get; set; } = [];
-        public List<SectionTag> SectionTags { get; set; } = [];
+        // Navigation properties
+        public virtual ICollection<ArticleTag> ArticleTags { get; set; } = new List<ArticleTag>();
+        public virtual ICollection<SectionTag> SectionTags { get; set; } = new List<SectionTag>();
     }
 }

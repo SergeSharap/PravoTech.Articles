@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using PravoTech.Articles.Constants;
 using PravoTech.Articles.Data;
 using PravoTech.Articles.DTOs;
@@ -10,36 +11,63 @@ namespace PravoTech.Articles.Services
     {
         private readonly AppDbContext _context;
         private readonly ILogger<SectionService> _logger;
+        private readonly IMemoryCache _cache;
 
-        public SectionService(AppDbContext dbContext, ILogger<SectionService> logger)
+        public SectionService(AppDbContext dbContext, ILogger<SectionService> logger, IMemoryCache cache)
         {
             _context = dbContext;
             _logger = logger;
+            _cache = cache;
         }
 
         public async Task<List<SectionResponse>> GetSectionsAsync()
         {
-            var result = await _context.Database
-                .SqlQuery<SectionWithTagsRaw>(SectionSqlQueryBuilder.BuildGetSectionsSqlQuery())
+            const string cacheKey = "sections_list";
+            
+            if (_cache.TryGetValue(cacheKey, out List<SectionResponse>? cachedSections))
+            {
+                _logger.LogInformation("Retrieved {Count} sections from cache", cachedSections?.Count ?? 0);
+                return cachedSections ?? new List<SectionResponse>();
+            }
+
+            // Optimized query with EF Core
+            var sections = await _context.Sections
+                .Include(s => s.SectionTags)
+                    .ThenInclude(st => st.Tag)
+                .Select(s => new SectionResponse
+                {
+                    Id = s.Id,
+                    Name = s.Name,
+                    Tags = s.SectionTags
+                        .OrderBy(st => st.Tag.Name)
+                        .Select(st => st.Tag.Name)
+                        .ToList(),
+                    ArticlesCount = s.SectionTags
+                        .SelectMany(st => st.Tag.ArticleTags)
+                        .Select(at => at.ArticleId)
+                        .Distinct()
+                        .Count()
+                })
+                .OrderByDescending(s => s.ArticlesCount)
                 .ToListAsync();
 
-            var sections = result.Select(s => new SectionResponse
-            {
-                Id = s.Id,
-                Name = s.Name,
-                ArticlesCount = s.ArticlesCount,
-                Tags = s.TagList.Split(SqlQueryConstants.TagIdSeparator, StringSplitOptions.RemoveEmptyEntries).ToList()
-            })
-            .ToList();
+            // Cache result for 5 minutes
+            var cacheOptions = new MemoryCacheEntryOptions()
+                .SetSlidingExpiration(TimeSpan.FromMinutes(5))
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(10));
 
-            _logger.LogInformation("Retrieved {Count} sections", sections.Count);
+            _cache.Set(cacheKey, sections, cacheOptions);
+
+            _logger.LogInformation("Retrieved {Count} sections from database", sections.Count);
             return sections;
         }
 
         public async Task<List<ArticleResponse>> GetArticlesBySectionAsync(Guid sectionId)
         {
             var section = await _context.Sections
-                .FirstOrDefaultAsync(st => st.Id == sectionId);
+                .Include(s => s.SectionTags)
+                    .ThenInclude(st => st.Tag)
+                .FirstOrDefaultAsync(s => s.Id == sectionId);
 
             if (section == null)
             {
@@ -47,41 +75,99 @@ namespace PravoTech.Articles.Services
                 throw new KeyNotFoundException($"Section with ID {sectionId} not found");
             }
 
-            var tagIds = await _context.SectionTags
-                .Where(st => st.SectionId == sectionId)
+            // Get section tags
+            var sectionTagIds = section.SectionTags
                 .Select(st => st.TagId)
                 .OrderBy(id => id)
-                .ToListAsync();
-
-            var tagKey = string.Join(SqlQueryConstants.TagIdSeparator, tagIds);
-
-            var rawArticles = await _context.Database
-                .SqlQuery<ArticleFlat>(SectionSqlQueryBuilder.BuildGetArticlesBySectionSqlQuery(tagKey))
-                .ToListAsync();
-
-            var grouped = rawArticles
-                .GroupBy(x => new { x.Id, x.Title, x.CreatedAt, x.UpdatedAt })
-                .Select(g => new ArticleResponse
-                {
-                    Id = g.Key.Id,
-                    Title = g.Key.Title,
-                    CreatedAt = g.Key.CreatedAt,
-                    UpdatedAt = g.Key.UpdatedAt,
-                    Tags = g.OrderBy(x => x.TagOrder).Select(x => x.TagName).ToList()
-                })
                 .ToList();
 
-            _logger.LogInformation("Retrieved {Count} articles for section {SectionId}", grouped.Count, sectionId);
-            return grouped;
+            // Optimized query for getting articles
+            var articlesQuery = _context.Articles
+                .Include(a => a.ArticleTags)
+                    .ThenInclude(at => at.Tag)
+                .AsNoTracking(); // Improve performance for read-only operations
+
+            if (!sectionTagIds.Any())
+            {
+                // Articles without tags
+                var articles = await articlesQuery
+                    .Where(a => !a.ArticleTags.Any())
+                    .OrderByDescending(a => a.EffectiveDate)
+                    .Select(a => new ArticleResponse
+                    {
+                        Id = a.Id,
+                        Title = a.Title,
+                        CreatedAt = a.CreatedAt,
+                        UpdatedAt = a.UpdatedAt,
+                        RowVersion = a.RowVersion,
+                        Tags = new List<string>()
+                    })
+                    .ToListAsync();
+
+                _logger.LogInformation("Retrieved {Count} articles without tags for section {SectionId}", 
+                    articles.Count, sectionId);
+                return articles;
+            }
+            else
+            {
+                // Articles with specific tags
+                var articles = await articlesQuery
+                    .Where(a => a.ArticleTags.Any(at => sectionTagIds.Contains(at.TagId)))
+                    .Where(a => a.ArticleTags.Count == sectionTagIds.Count) // Exact match
+                    .Where(a => a.ArticleTags.All(at => sectionTagIds.Contains(at.TagId))) // All tags must match
+                    .OrderByDescending(a => a.EffectiveDate)
+                    .Select(a => new ArticleResponse
+                    {
+                        Id = a.Id,
+                        Title = a.Title,
+                        CreatedAt = a.CreatedAt,
+                        UpdatedAt = a.UpdatedAt,
+                        RowVersion = a.RowVersion,
+                        Tags = a.ArticleTags
+                            .OrderBy(at => at.Order)
+                            .Select(at => at.Tag.Name)
+                            .ToList()
+                    })
+                    .ToListAsync();
+
+                _logger.LogInformation("Retrieved {Count} articles with tags {TagIds} for section {SectionId}", 
+                    articles.Count, string.Join(",", sectionTagIds), sectionId);
+                return articles;
+            }
         }
 
-        public async Task<Guid?> GetSectionIdByTags(string tagKey)
+        public async Task<Guid?> GetSectionIdByTags(string? tagKey)
         {
-            var result = await _context.Database
-                .SqlQuery<Guid?>(SectionSqlQueryBuilder.BuildGetSectionIdByTagsSqlQuery(tagKey))
-                .ToListAsync();
+            if (string.IsNullOrEmpty(tagKey))
+            {
+                // Section without tags
+                var section = await _context.Sections
+                    .Where(s => !s.SectionTags.Any())
+                    .Select(s => s.Id)
+                    .FirstOrDefaultAsync();
 
-            return result.FirstOrDefault();
+                return section;
+            }
+            else
+            {
+                // Parse tagKey
+                var tagIds = tagKey.Split(TagConstants.TagIdSeparator, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(int.Parse)
+                    .OrderBy(id => id)
+                    .ToList();
+
+                if (!tagIds.Any())
+                    return null;
+
+                // Find section with exact tag match
+                var section = await _context.Sections
+                    .Where(s => s.SectionTags.Count == tagIds.Count)
+                    .Where(s => s.SectionTags.All(st => tagIds.Contains(st.TagId)))
+                    .Select(s => s.Id)
+                    .FirstOrDefaultAsync();
+
+                return section;
+            }
         }
 
         public async Task CreateSection(List<Tag> allTags, List<int> sortedTagIds)
@@ -93,10 +179,10 @@ namespace PravoTech.Articles.Services
                 .ToList();
 
             var sectionName = sortedTagNames.Any()
-                ? string.Join(SqlQueryConstants.TagNameSeparator, sortedTagNames)
-                    [..Math.Min(SqlQueryConstants.MaxSectionNameLength, 
-                    string.Join(SqlQueryConstants.TagNameSeparator, sortedTagNames).Length)]
-                : SqlQueryConstants.NoTagsSectionName;
+                ? string.Join(TagConstants.TagNameSeparator, sortedTagNames)
+                    [..Math.Min(TagConstants.MaxSectionNameLength, 
+                    string.Join(TagConstants.TagNameSeparator, sortedTagNames).Length)]
+                : TagConstants.NoTagsSectionName;
 
             var sectionToAdd = new Section
             {
@@ -110,6 +196,9 @@ namespace PravoTech.Articles.Services
             _context.Sections.Add(sectionToAdd);
             await _context.SaveChangesAsync();
 
+            // Invalidate cache
+            _cache.Remove("sections_list");
+
             _logger.LogInformation("Created new section with ID {SectionId} and name {SectionName}", 
                 sectionToAdd.Id, sectionToAdd.Name);
         }
@@ -117,25 +206,33 @@ namespace PravoTech.Articles.Services
         public async Task<bool> DeleteSectionIfNoOtherArticlesAsync(List<int> tagIds)
         {
             string? tagKey = tagIds.Any()
-                ? string.Join(SqlQueryConstants.TagIdSeparator, tagIds.OrderBy(id => id))
+                ? string.Join(TagConstants.TagIdSeparator, tagIds.OrderBy(id => id))
                 : null;
 
-            var result = await _context.Database
-                .SqlQuery<int>(SectionSqlQueryBuilder.BuildGetArticlesExistenceByTagsSqlQuery(tagKey))
-                .ToListAsync();
+            // Check if articles exist with these tags
+            bool hasArticles;
+            if (!tagIds.Any())
+            {
+                // Articles without tags
+                hasArticles = await _context.Articles
+                    .AnyAsync(a => !a.ArticleTags.Any());
+            }
+            else
+            {
+                // Articles with specific tags
+                hasArticles = await _context.Articles
+                    .AnyAsync(a => a.ArticleTags.Count == tagIds.Count && 
+                                   a.ArticleTags.All(at => tagIds.Contains(at.TagId)));
+            }
 
-            var exists = result.FirstOrDefault();
-            if (exists == 1)
+            if (hasArticles)
             {
                 _logger.LogInformation("Section with tags {TagIds} has articles, skipping deletion", tagIds);
                 return false;
             }
 
-            var sectionIds = await _context.Database
-                .SqlQuery<Guid?>(SectionSqlQueryBuilder.BuildGetSectionIdByTagsSqlQuery(tagKey))
-                .ToListAsync();
-
-            var sectionId = sectionIds.FirstOrDefault();
+            // Delete section
+            var sectionId = await GetSectionIdByTags(tagKey);
             if (sectionId is not null)
             {
                 var section = await _context.Sections.FindAsync(sectionId.Value);
@@ -143,6 +240,10 @@ namespace PravoTech.Articles.Services
                 {
                     _context.Sections.Remove(section);
                     await _context.SaveChangesAsync();
+                    
+                    // Invalidate cache
+                    _cache.Remove("sections_list");
+                    
                     _logger.LogInformation("Deleted section {SectionId} with tags {TagIds}", sectionId, tagIds);
                     return true;
                 }

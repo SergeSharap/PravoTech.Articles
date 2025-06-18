@@ -1,9 +1,9 @@
 namespace PravoTech.Articles.Constants;
 
 /// <summary>
-/// Contains SQL query related constants used throughout the application
+/// Contains tag and section related constants used throughout the application
 /// </summary>
-public static class SqlQueryConstants
+public static class TagConstants
 {
     /// <summary>
     /// Default section name when no tags are present

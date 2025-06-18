@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PravoTech.Articles.Data;
 
@@ -11,9 +12,11 @@ using PravoTech.Articles.Data;
 namespace PravoTech.Articles.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250618082505_AddRowVersionToArticle")]
+    partial class AddRowVersionToArticle
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,21 +24,6 @@ namespace PravoTech.Articles.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.Entity("ArticleTag", b =>
-                {
-                    b.Property<Guid>("ArticlesId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("TagsId")
-                        .HasColumnType("int");
-
-                    b.HasKey("ArticlesId", "TagsId");
-
-                    b.HasIndex("TagsId");
-
-                    b.ToTable("ArticleTag");
-                });
 
             modelBuilder.Entity("PravoTech.Articles.Entities.Article", b =>
                 {
@@ -56,29 +44,18 @@ namespace PravoTech.Articles.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
-                    b.Property<Guid?>("SectionId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedAt")
-                        .HasDatabaseName("IX_Articles_CreatedAt");
-
                     b.HasIndex("EffectiveDate")
                         .HasDatabaseName("IX_Articles_EffectiveDate");
-
-                    b.HasIndex("SectionId");
-
-                    b.HasIndex("UpdatedAt")
-                        .HasDatabaseName("IX_Articles_UpdatedAt");
 
                     b.ToTable("Articles");
                 });
@@ -96,12 +73,10 @@ namespace PravoTech.Articles.Migrations
 
                     b.HasKey("ArticleId", "TagId");
 
-                    b.HasIndex("TagId")
-                        .HasDatabaseName("IX_ArticleTags_TagId");
+                    b.HasIndex("TagId");
 
                     b.HasIndex("ArticleId", "Order")
-                        .IsUnique()
-                        .HasDatabaseName("IX_ArticleTags_ArticleId_Order");
+                        .IsUnique();
 
                     b.ToTable("ArticleTags");
                 });
@@ -120,9 +95,6 @@ namespace PravoTech.Articles.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Name")
-                        .HasDatabaseName("IX_Sections_Name");
-
                     b.ToTable("Sections");
                 });
 
@@ -136,8 +108,7 @@ namespace PravoTech.Articles.Migrations
 
                     b.HasKey("SectionId", "TagId");
 
-                    b.HasIndex("TagId")
-                        .HasDatabaseName("IX_SectionTags_TagId");
+                    b.HasIndex("TagId");
 
                     b.ToTable("SectionTags");
                 });
@@ -162,51 +133,11 @@ namespace PravoTech.Articles.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Name")
-                        .HasDatabaseName("IX_Tags_Name");
-
                     b.HasIndex("NormalizedName")
                         .IsUnique()
                         .HasDatabaseName("IX_Tags_NormalizedName");
 
                     b.ToTable("Tags");
-                });
-
-            modelBuilder.Entity("SectionTag", b =>
-                {
-                    b.Property<Guid>("SectionsId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("TagsId")
-                        .HasColumnType("int");
-
-                    b.HasKey("SectionsId", "TagsId");
-
-                    b.HasIndex("TagsId");
-
-                    b.ToTable("SectionTag");
-                });
-
-            modelBuilder.Entity("ArticleTag", b =>
-                {
-                    b.HasOne("PravoTech.Articles.Entities.Article", null)
-                        .WithMany()
-                        .HasForeignKey("ArticlesId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("PravoTech.Articles.Entities.Tag", null)
-                        .WithMany()
-                        .HasForeignKey("TagsId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("PravoTech.Articles.Entities.Article", b =>
-                {
-                    b.HasOne("PravoTech.Articles.Entities.Section", null)
-                        .WithMany("Articles")
-                        .HasForeignKey("SectionId");
                 });
 
             modelBuilder.Entity("PravoTech.Articles.Entities.ArticleTag", b =>
@@ -247,21 +178,6 @@ namespace PravoTech.Articles.Migrations
                     b.Navigation("Tag");
                 });
 
-            modelBuilder.Entity("SectionTag", b =>
-                {
-                    b.HasOne("PravoTech.Articles.Entities.Section", null)
-                        .WithMany()
-                        .HasForeignKey("SectionsId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("PravoTech.Articles.Entities.Tag", null)
-                        .WithMany()
-                        .HasForeignKey("TagsId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("PravoTech.Articles.Entities.Article", b =>
                 {
                     b.Navigation("ArticleTags");
@@ -269,8 +185,6 @@ namespace PravoTech.Articles.Migrations
 
             modelBuilder.Entity("PravoTech.Articles.Entities.Section", b =>
                 {
-                    b.Navigation("Articles");
-
                     b.Navigation("SectionTags");
                 });
 
