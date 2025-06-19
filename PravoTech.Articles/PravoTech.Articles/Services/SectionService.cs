@@ -20,17 +20,41 @@ namespace PravoTech.Articles.Services
             _cache = cache;
         }
 
-        public async Task<List<SectionResponse>> GetSectionsAsync()
+        public async Task<PaginatedResponse<SectionResponse>> GetSectionsAsync(int page = 1, int pageSize = 20)
         {
+            // Validate pagination parameters
+            page = Math.Max(BusinessConstants.MinPageNumber, page);
+            pageSize = Math.Max(BusinessConstants.MinPageSize, Math.Min(BusinessConstants.MaxPageSize, pageSize));
+
             const string cacheKey = "sections_list";
             
             if (_cache.TryGetValue(cacheKey, out List<SectionResponse>? cachedSections))
             {
-                _logger.LogInformation("Retrieved {Count} sections from cache", cachedSections?.Count ?? 0);
-                return cachedSections ?? new List<SectionResponse>();
+                // Apply pagination to cached results
+                var cachedTotalCount = cachedSections?.Count ?? 0;
+                var cachedTotalPages = (int)Math.Ceiling((double)cachedTotalCount / pageSize);
+                var skip = (page - 1) * pageSize;
+                var items = cachedSections?.Skip(skip).Take(pageSize).ToList() ?? new List<SectionResponse>();
+
+                return new PaginatedResponse<SectionResponse>
+                {
+                    Items = items,
+                    Metadata = new PaginationMetadata
+                    {
+                        CurrentPage = page,
+                        PageSize = pageSize,
+                        TotalCount = cachedTotalCount,
+                        TotalPages = cachedTotalPages,
+                        HasPreviousPage = page > 1,
+                        HasNextPage = page < cachedTotalPages
+                    }
+                };
             }
 
-            // Optimized query with EF Core
+            // Get total count for pagination metadata
+            var totalSectionsCount = await _context.Sections.CountAsync();
+
+            // Optimized query with EF Core pagination
             var sections = await _context.Sections
                 .Include(s => s.SectionTags)
                     .ThenInclude(st => st.Tag)
@@ -49,6 +73,8 @@ namespace PravoTech.Articles.Services
                         .Count()
                 })
                 .OrderByDescending(s => s.ArticlesCount)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
             // Cache result for 5 minutes
@@ -58,12 +84,32 @@ namespace PravoTech.Articles.Services
 
             _cache.Set(cacheKey, sections, cacheOptions);
 
-            _logger.LogInformation("Retrieved {Count} sections from database", sections.Count);
-            return sections;
+            var totalPages = (int)Math.Ceiling((double)totalSectionsCount / pageSize);
+
+            _logger.LogInformation("Retrieved {Count} sections from database (page {Page} of {TotalPages})", 
+                sections.Count, page, totalPages);
+
+            return new PaginatedResponse<SectionResponse>
+            {
+                Items = sections,
+                Metadata = new PaginationMetadata
+                {
+                    CurrentPage = page,
+                    PageSize = pageSize,
+                    TotalCount = totalSectionsCount,
+                    TotalPages = totalPages,
+                    HasPreviousPage = page > 1,
+                    HasNextPage = page < totalPages
+                }
+            };
         }
 
-        public async Task<List<ArticleResponse>> GetArticlesBySectionAsync(Guid sectionId)
+        public async Task<PaginatedResponse<ArticleResponse>> GetArticlesBySectionAsync(Guid sectionId, int page = 1, int pageSize = 20)
         {
+            // Validate pagination parameters
+            page = Math.Max(BusinessConstants.MinPageNumber, page);
+            pageSize = Math.Max(BusinessConstants.MinPageSize, Math.Min(BusinessConstants.MaxPageSize, pageSize));
+
             var section = await _context.Sections
                 .Include(s => s.SectionTags)
                     .ThenInclude(st => st.Tag)
@@ -81,16 +127,18 @@ namespace PravoTech.Articles.Services
                 .OrderBy(id => id)
                 .ToList();
 
-            // Optimized query for getting articles
+            // Optimized query for getting articles with pagination
             var articlesQuery = _context.Articles
                 .Include(a => a.ArticleTags)
                     .ThenInclude(at => at.Tag)
                 .AsNoTracking(); // Improve performance for read-only operations
 
+            IQueryable<ArticleResponse> articlesResponseQuery;
+
             if (!sectionTagIds.Any())
             {
                 // Articles without tags
-                var articles = await articlesQuery
+                articlesResponseQuery = articlesQuery
                     .Where(a => !a.ArticleTags.Any())
                     .OrderByDescending(a => a.EffectiveDate)
                     .Select(a => new ArticleResponse
@@ -101,20 +149,14 @@ namespace PravoTech.Articles.Services
                         UpdatedAt = a.UpdatedAt,
                         RowVersion = a.RowVersion,
                         Tags = new List<string>()
-                    })
-                    .ToListAsync();
-
-                _logger.LogInformation("Retrieved {Count} articles without tags for section {SectionId}", 
-                    articles.Count, sectionId);
-                return articles;
+                    });
             }
             else
             {
                 // Articles with specific tags
-                var articles = await articlesQuery
-                    .Where(a => a.ArticleTags.Any(at => sectionTagIds.Contains(at.TagId)))
-                    .Where(a => a.ArticleTags.Count == sectionTagIds.Count) // Exact match
-                    .Where(a => a.ArticleTags.All(at => sectionTagIds.Contains(at.TagId))) // All tags must match
+                articlesResponseQuery = articlesQuery
+                    .Where(a => a.ArticleTags.Count == sectionTagIds.Count && 
+                               a.ArticleTags.All(at => sectionTagIds.Contains(at.TagId)))
                     .OrderByDescending(a => a.EffectiveDate)
                     .Select(a => new ArticleResponse
                     {
@@ -127,13 +169,36 @@ namespace PravoTech.Articles.Services
                             .OrderBy(at => at.Order)
                             .Select(at => at.Tag.Name)
                             .ToList()
-                    })
-                    .ToListAsync();
-
-                _logger.LogInformation("Retrieved {Count} articles with tags {TagIds} for section {SectionId}", 
-                    articles.Count, string.Join(",", sectionTagIds), sectionId);
-                return articles;
+                    });
             }
+
+            // Get total count for pagination metadata
+            var totalCount = await articlesResponseQuery.CountAsync();
+
+            // Apply pagination
+            var articles = await articlesResponseQuery
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
+
+            _logger.LogInformation("Retrieved {Count} articles with tags {TagIds} for section {SectionId} (page {Page} of {TotalPages})", 
+                articles.Count, string.Join(",", sectionTagIds), sectionId, page, totalPages);
+
+            return new PaginatedResponse<ArticleResponse>
+            {
+                Items = articles,
+                Metadata = new PaginationMetadata
+                {
+                    CurrentPage = page,
+                    PageSize = pageSize,
+                    TotalCount = totalCount,
+                    TotalPages = totalPages,
+                    HasPreviousPage = page > 1,
+                    HasNextPage = page < totalPages
+                }
+            };
         }
 
         public async Task<Guid?> GetSectionIdByTags(string? tagKey)
@@ -161,8 +226,8 @@ namespace PravoTech.Articles.Services
 
                 // Find section with exact tag match
                 var section = await _context.Sections
-                    .Where(s => s.SectionTags.Count == tagIds.Count)
-                    .Where(s => s.SectionTags.All(st => tagIds.Contains(st.TagId)))
+                    .Where(s => s.SectionTags.Count == tagIds.Count && 
+                               s.SectionTags.All(st => tagIds.Contains(st.TagId)))
                     .Select(s => s.Id)
                     .FirstOrDefaultAsync();
 

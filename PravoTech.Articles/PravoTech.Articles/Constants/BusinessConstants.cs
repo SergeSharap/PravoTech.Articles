@@ -24,4 +24,24 @@ public static class BusinessConstants
     /// Error message template for tag not found
     /// </summary>
     public const string TagNotFoundErrorMessageTemplate = "Tag '{0}' not found in allTags.";
+
+    /// <summary>
+    /// Default page size for pagination
+    /// </summary>
+    public const int DefaultPageSize = 20;
+
+    /// <summary>
+    /// Maximum page size for pagination
+    /// </summary>
+    public const int MaxPageSize = 100;
+
+    /// <summary>
+    /// Minimum page size for pagination
+    /// </summary>
+    public const int MinPageSize = 1;
+
+    /// <summary>
+    /// Minimum page number for pagination
+    /// </summary>
+    public const int MinPageNumber = 1;
 } 

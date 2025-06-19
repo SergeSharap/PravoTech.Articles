@@ -5,8 +5,8 @@ namespace PravoTech.Articles.Services
 {
     public interface ISectionService
     {
-        Task<List<SectionResponse>> GetSectionsAsync();
-        Task<List<ArticleResponse>> GetArticlesBySectionAsync(Guid sectionId);
+        Task<PaginatedResponse<SectionResponse>> GetSectionsAsync(int page = 1, int pageSize = 20);
+        Task<PaginatedResponse<ArticleResponse>> GetArticlesBySectionAsync(Guid sectionId, int page = 1, int pageSize = 20);
         Task<Guid?> GetSectionIdByTags(string? tagKey);
         Task CreateSection(List<Tag> allTags, List<int> sortedTagIds);
         Task<bool> DeleteSectionIfNoOtherArticlesAsync(List<int> tagIds);

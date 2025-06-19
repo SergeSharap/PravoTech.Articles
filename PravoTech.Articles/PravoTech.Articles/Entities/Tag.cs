@@ -1,5 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
-using PravoTech.Articles.Constants;
+﻿using PravoTech.Articles.Constants;
+using System.ComponentModel.DataAnnotations;
 
 namespace PravoTech.Articles.Entities
 {

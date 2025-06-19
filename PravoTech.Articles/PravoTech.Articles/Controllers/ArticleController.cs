@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using PravoTech.Articles.DTOs;
 using PravoTech.Articles.Services;
-using Microsoft.Extensions.Logging;
 
 namespace PravoTech.Articles.Controllers
 {
